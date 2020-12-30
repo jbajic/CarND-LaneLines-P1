@@ -8,49 +8,73 @@ Overview
 
 When we drive, we use our eyes to decide where to go.  The lines on the road that show us where the lanes are act as our constant reference for where to steer the vehicle.  Naturally, one of the first things we would like to do in developing a self-driving car is to automatically detect lane lines using an algorithm.
 
-In this project you will detect lane lines in images using Python and OpenCV.  OpenCV means "Open-Source Computer Vision", which is a package that has many useful tools for analyzing images.  
+### 1. Plan
 
-To complete the project, two files will be submitted: a file containing project code and a file containing a brief write up explaining your solution. We have included template files to be used both for the [code](https://github.com/udacity/CarND-LaneLines-P1/blob/master/P1.ipynb) and the [writeup](https://github.com/udacity/CarND-LaneLines-P1/blob/master/writeup_template.md).The code file is called P1.ipynb and the writeup template is writeup_template.md 
+The implemented pipeline consists of the following steps:
+ 1. Reading an image.
+ 2. Converting image to grayscale.
+ 3. Blurring image using Gaussian smoothing technique.
+ 4. Detecting edges using Canny edge detection algorithm.
+ 5. Selecting ROI (Region of interest) where we expect to find object.
+ 6. Getting all the detected lines by using Hough transformation.
 
-To meet specifications in the project, take a look at the requirements in the [project rubric](https://review.udacity.com/#!/rubrics/322/view)
+#### 1.1. Reading an image
+
+ This step only includes using openCv function `imread` to read an image. The read images are in JPG format and have RGB channels, in other word every pixel has the following possible range of values [0-255, 0-255, 0-255], for red, green and blue color.
+
+#### 1.2. Grayscale
+ In this step the idea is to reduce the 64 bit pixel to 8bit pixel, to havel only black-white color range. That is being done by using `cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)` function.
+
+#### 1.3. Gaussian Smoothing
+
+ This step uses algorithm for smoothing images. In short description it uses a kernel (basically a matrix) which visits every area of image and blurs it using [Gaussian function](https://en.wikipedia.org/wiki/Gaussian_blur#:~:text=In%20image%20processing%2C%20a%20Gaussian,image%20noise%20and%20reduce%20detail.). This step is necessary to reduce the noise in images and improve the results of the next steps.
+
+#### 1.4. Canny Edge Detection
+
+ Canny edge detection is one of the algorithms used for detecting edges in images and internally it also uses Gaussian filter in order to remove the noise. This project uses `cv2.Canny` function from openCv. Canny edge algorithm needs only two numbers:
+  1. Low Threshold,
+  2. High Threshold.
+ For every pixel in image the following is applied:
+  - `pixel_value < low_threshold` => pixel is ignored (suppressed edge pixel)
+  - `pixel_value > high_threshold` => pixel is detected as an edge (strong edge pixel)
+  - `low_threshold < pixel_value < high_threshold` => pixel is detected and considered as an edge if it is connected to the already detected edge (weak edge pixel)
+
+  In this work first were used empirical values, and than I have decided to use adaptive search for thresholds presented here(https://www.pyimagesearch.com/2015/04/06/zero-parameter-automatic-canny-edge-detection-with-python-and-opencv/).
+
+#### 1.5. ROI Selection
+
+ This part deals with selecting with part of image that we are sure the object we want to detect is located. The picked values are chosen empirically.
+
+#### 1.6. Hough Transformation
+
+ The final step uses openCv function `cv2.HoughLinesP` for detecting all lines on selected part of image from previous step. The idea is to get all lines that are detected and to find the lines on a road. This part is the most tedious to solve since the results from previous steps were mostly visible in this, because they directly influence which lines were detected. The parameters which determine the behavior of Hough transformation are:
+ - `rho` => distance resolution in pixels of the Hough grid
+ - `theta` => angular resolution in radians of the Hough grid
+ - `threshold` => minimum number of votes (intersections in Hough grid cell)
+ - `min_line_len` => minimum number of pixels making up a line
+ - `max_line_gap` => maximum gap in pixels between connectable line segments
+ The Hough transformation works by converting the pixels from image space to Hugh space (otherwise known as parameter space), and that is being done in order to easier find lines in image space, becaus you only need to look for points in Hough space. (Image space: `y = mx + b` => abscissa: x, ordinate: y, Hough space: `b = y - xm` abscissa: m, ordinate: b). This is excellent idea to quickly detect lines, and the output of `HughLinesP` function are group of lines defined by 4 points.
+
+ The problem lies that road lines are not always straight, in other words sometimes they are dotted, and in order to successfully mark the line we mast extrapolate the points. That is being done by analyzing the detected points and determining the best continuation of these points. The assumption is that there won't be big curvatures and therefore we can assume that we are looking for straight line (that can be described by `y = mx + b`). And also what was assumed that we want only two lines one coming from left to right (positive slope) and other from right to left (negative slope). There were several methods tried out:
+  1. Calculating the average slope and intercept.
+  2. Finding the median slope and intercept.
+  3. Calculating RMS ([Root Mean Square](https://en.wikipedia.org/wiki/Root_mean_square)) slope and intercept.
+  4. Using `np.polyfit` to get polynomial of first degree.
+  5. Calculating [weighted mean](https://en.wikipedia.org/wiki/Weighted_arithmetic_mean) slope and intercept (where weight is the length of Hough line).
+
+ The best one was determined empirically and it was No. 5.
+
+You can check out the steps in this image:
+![Steps shown](steps.png)
 
 
-Creating a Great Writeup
----
-For this project, a great writeup should provide a detailed response to the "Reflection" section of the [project rubric](https://review.udacity.com/#!/rubrics/322/view). There are three parts to the reflection:
+### 2. Potential shortcomings
 
-1. Describe the pipeline
+The biggest shortcoming of detecting lines in such way it too many assumption about the image we will receive such as we expect certain environment conditions, position fo camera to be the same, no strange light effects. Since the idea for detecting lines is essential for any drive assistance mistakes are not tolerable.
 
-2. Identify any shortcomings
+### 3. Possible improvements
 
-3. Suggest possible improvements
-
-We encourage using images in your writeup to demonstrate how your pipeline works.  
-
-All that said, please be concise!  We're not looking for you to write a book here: just a brief description.
-
-You're not required to use markdown for your writeup.  If you use another method please just submit a pdf of your writeup. Here is a link to a [writeup template file](https://github.com/udacity/CarND-LaneLines-P1/blob/master/writeup_template.md). 
-
-
-The Project
----
-
-## If you have already installed the [CarND Term1 Starter Kit](https://github.com/udacity/CarND-Term1-Starter-Kit/blob/master/README.md) you should be good to go!   If not, you should install the starter kit to get started on this project. ##
-
-**Step 1:** Set up the [CarND Term1 Starter Kit](https://github.com/udacity/CarND-Term1-Starter-Kit/blob/master/README.md) if you haven't already.
-
-**Step 2:** Open the code in a Jupyter Notebook
-
-You will complete the project code in a Jupyter notebook.  If you are unfamiliar with Jupyter Notebooks, check out [Udacity's free course on Anaconda and Jupyter Notebooks](https://classroom.udacity.com/courses/ud1111) to get started.
-
-Jupyter is an Ipython notebook where you can run blocks of code and see results interactively.  All the code for this project is contained in a Jupyter notebook. To start Jupyter in your browser, use terminal to navigate to your project directory and then run the following command at the terminal prompt (be sure you've activated your Python 3 carnd-term1 environment as described in the [CarND Term1 Starter Kit](https://github.com/udacity/CarND-Term1-Starter-Kit/blob/master/README.md) installation instructions!):
-
-`> jupyter notebook`
-
-A browser window will appear showing the contents of the current directory.  Click on the file called "P1.ipynb".  Another browser window will appear displaying the notebook.  Follow the instructions in the notebook to complete the project.  
-
-**Step 3:** Complete the project and submit both the Ipython notebook and the project writeup
-
-## How to write a README
-A well written README file can enhance your project and portfolio.  Develop your abilities to create professional README files by completing [this free course](https://www.udacity.com/course/writing-readmes--ud777).
-
+A possible improvements would be:
+ 1. Canny Edge Detection works really unreliably when there are strange light effect in image, which can be seen by running this algorithm ono challenge video. Adjusting different parameters which would be dependant on lighting conditions in image, or maybe nullifying extremes pixels in image (too much light on road) in order to not allow extremes to ruin detection.
+ 2. Improve ROI selection, since the cutting the noisy part of images would be great and would improve the detection drastically.
+ 3. Improving the pipeline for detecting line, so that every frame know where the previous frame detected image, so that there is not too much discrepancy between frames. (If the next frame suddenly detect line totally off from previous n frames keep the show the results from previous frame and not from this one.)
